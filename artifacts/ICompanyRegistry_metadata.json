@@ -1,0 +1,65 @@
+{
+	"compiler": {
+		"version": "0.8.30+commit.73712a01"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "wallet",
+						"type": "address"
+					}
+				],
+				"name": "getCapKgByWallet",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			}
+		],
+		"devdoc": {
+			"kind": "dev",
+			"methods": {},
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {},
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"backend/contracts/CarbonCreditToken.sol": "ICompanyRegistry"
+		},
+		"evmVersion": "prague",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": false,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"backend/contracts/CarbonCreditToken.sol": {
+			"keccak256": "0x5ed0edec2f88f1db3b522520c0decd5e79c7132497fe69887c646ecc8b248992",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://df5700372b8e3441a2fe0426a1e03cf4918c2a427b217661e42b4a360ea7d158",
+				"dweb:/ipfs/QmdRvAvcMs7uQWNm1xkbzgHpxqWhmtzHide2GZutHo4L2Y"
+			]
+		}
+	},
+	"version": 1
+}

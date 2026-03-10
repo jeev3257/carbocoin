@@ -10,14 +10,21 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
     "@tailwindcss/forms": "^0.5.10",
+    "@metamask/sdk": "^0.30.2",
     "clsx": "^2.1.1",
     "firebase": "^12.7.0",
+    "ethers": "^6.13.4",
     "lucide-react": "^0.544.0",
+    "motion": "^12.34.5",
+    "ogl": "^1.0.11",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.3",
-    "recharts": "^3.6.0"
+    "recharts": "^3.6.0",
+    "three": "^0.183.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

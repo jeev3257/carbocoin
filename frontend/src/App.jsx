@@ -5,8 +5,6 @@ import { SignupPage } from "./components/SignupPage";
 import { Dashboard } from "./components/Dashboard";
 import { ApplicationStatus } from "./components/ApplicationStatus";
 import { AdminPanel } from "./components/AdminPanel";
-import { Background } from "./components/Background";
-
 function App() {
   const [page, setPage] = useState("home");
   const [userData, setUserData] = useState(null);
@@ -20,7 +18,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#0B0F17] text-white">
-      <Background />
       {page === "home" && <LandingPage onNavigate={onNavigate} />}
       {page === "login" && <LoginPage onNavigate={onNavigate} />}
       {page === "signup" && <SignupPage onNavigate={onNavigate} />}

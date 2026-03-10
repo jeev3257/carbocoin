@@ -1,0 +1,4 @@
+backend/.env
+backend/scripts/firebase_sdk.json
+backend/node_modules/
+frontend/node_modules/

@@ -1,0 +1,456 @@
+{
+	"compiler": {
+		"version": "0.8.30+commit.73712a01"
+	},
+	"language": "Solidity",
+	"output": {
+		"abi": [
+			{
+				"inputs": [],
+				"stateMutability": "nonpayable",
+				"type": "constructor"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "bytes32",
+						"name": "key",
+						"type": "bytes32"
+					},
+					{
+						"indexed": false,
+						"internalType": "string",
+						"name": "firebaseId",
+						"type": "string"
+					},
+					{
+						"indexed": false,
+						"internalType": "string",
+						"name": "name",
+						"type": "string"
+					},
+					{
+						"indexed": false,
+						"internalType": "address",
+						"name": "wallet",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "string",
+						"name": "emissionCapText",
+						"type": "string"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "capKgPerWindow",
+						"type": "uint256"
+					}
+				],
+				"name": "CompanyRecorded",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "bytes32",
+						"name": "key",
+						"type": "bytes32"
+					},
+					{
+						"indexed": false,
+						"internalType": "string",
+						"name": "firebaseId",
+						"type": "string"
+					},
+					{
+						"indexed": false,
+						"internalType": "string",
+						"name": "emissionCapText",
+						"type": "string"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "capKgPerWindow",
+						"type": "uint256"
+					}
+				],
+				"name": "EmissionCapUpdated",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "bytes32",
+						"name": "key",
+						"type": "bytes32"
+					},
+					{
+						"indexed": false,
+						"internalType": "string",
+						"name": "firebaseId",
+						"type": "string"
+					},
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "wallet",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "FundingSent",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "previousOwner",
+						"type": "address"
+					},
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "OwnershipTransferred",
+				"type": "event"
+			},
+			{
+				"inputs": [],
+				"name": "fundAmountWei",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "wallet",
+						"type": "address"
+					}
+				],
+				"name": "getCapKgByWallet",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "string",
+						"name": "firebaseId",
+						"type": "string"
+					}
+				],
+				"name": "getCompany",
+				"outputs": [
+					{
+						"components": [
+							{
+								"internalType": "string",
+								"name": "firebaseId",
+								"type": "string"
+							},
+							{
+								"internalType": "string",
+								"name": "name",
+								"type": "string"
+							},
+							{
+								"internalType": "address",
+								"name": "wallet",
+								"type": "address"
+							},
+							{
+								"internalType": "string",
+								"name": "emissionCapText",
+								"type": "string"
+							},
+							{
+								"internalType": "uint256",
+								"name": "capKgPerWindow",
+								"type": "uint256"
+							},
+							{
+								"internalType": "uint256",
+								"name": "recordedAt",
+								"type": "uint256"
+							}
+						],
+						"internalType": "struct CompanyRegistry.Company",
+						"name": "",
+						"type": "tuple"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "wallet",
+						"type": "address"
+					}
+				],
+				"name": "getCompanyByAddress",
+				"outputs": [
+					{
+						"components": [
+							{
+								"internalType": "string",
+								"name": "firebaseId",
+								"type": "string"
+							},
+							{
+								"internalType": "string",
+								"name": "name",
+								"type": "string"
+							},
+							{
+								"internalType": "address",
+								"name": "wallet",
+								"type": "address"
+							},
+							{
+								"internalType": "string",
+								"name": "emissionCapText",
+								"type": "string"
+							},
+							{
+								"internalType": "uint256",
+								"name": "capKgPerWindow",
+								"type": "uint256"
+							},
+							{
+								"internalType": "uint256",
+								"name": "recordedAt",
+								"type": "uint256"
+							}
+						],
+						"internalType": "struct CompanyRegistry.Company",
+						"name": "",
+						"type": "tuple"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "owner",
+				"outputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "string",
+						"name": "firebaseId",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "name",
+						"type": "string"
+					},
+					{
+						"internalType": "address",
+						"name": "wallet",
+						"type": "address"
+					},
+					{
+						"internalType": "string",
+						"name": "emissionCapText",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "capKgPerWindow",
+						"type": "uint256"
+					}
+				],
+				"name": "recordCompany",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "string",
+						"name": "firebaseId",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "name",
+						"type": "string"
+					},
+					{
+						"internalType": "address",
+						"name": "wallet",
+						"type": "address"
+					},
+					{
+						"internalType": "string",
+						"name": "emissionCapText",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "capKgPerWindow",
+						"type": "uint256"
+					}
+				],
+				"name": "recordCompanyAndFund",
+				"outputs": [],
+				"stateMutability": "payable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "setFundAmountWei",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "newOwner",
+						"type": "address"
+					}
+				],
+				"name": "transferOwnership",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "string",
+						"name": "firebaseId",
+						"type": "string"
+					},
+					{
+						"internalType": "string",
+						"name": "emissionCapText",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "capKgPerWindow",
+						"type": "uint256"
+					}
+				],
+				"name": "updateEmissionCap",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"stateMutability": "payable",
+				"type": "receive"
+			}
+		],
+		"devdoc": {
+			"kind": "dev",
+			"methods": {},
+			"title": "Company Registry for EcoChain",
+			"version": 1
+		},
+		"userdoc": {
+			"kind": "user",
+			"methods": {
+				"getCompany(string)": {
+					"notice": "View helper to fetch a company by firebaseId."
+				},
+				"recordCompany(string,string,address,string,uint256)": {
+					"notice": "Record or overwrite a company entry without funding."
+				},
+				"recordCompanyAndFund(string,string,address,string,uint256)": {
+					"notice": "Record company and fund in a single call. Sends msg.value to the company wallet (caller provides value)."
+				},
+				"updateEmissionCap(string,string,uint256)": {
+					"notice": "Update emission cap only (keeping other fields intact)."
+				}
+			},
+			"notice": "Owner (admin) records companies approved in Firebase to the blockchain and optionally funds them",
+			"version": 1
+		}
+	},
+	"settings": {
+		"compilationTarget": {
+			"backend/contracts/CompanyRegistry.sol": "CompanyRegistry"
+		},
+		"evmVersion": "prague",
+		"libraries": {},
+		"metadata": {
+			"bytecodeHash": "ipfs"
+		},
+		"optimizer": {
+			"enabled": false,
+			"runs": 200
+		},
+		"remappings": []
+	},
+	"sources": {
+		"backend/contracts/CompanyRegistry.sol": {
+			"keccak256": "0xfa61418de24c104c7804f1e12fbd28c1fdd03c08b385858b0a007937e1fd0c8f",
+			"license": "MIT",
+			"urls": [
+				"bzz-raw://52bf248d3b95cce691e88754236ddb85837b5b6c8c3f64d6fac5e09983e97548",
+				"dweb:/ipfs/QmPvxkPtuqdQf5umw5e4NmcrQjj8W3c6eyrVTNiqekXVJ6"
+			]
+		}
+	},
+	"version": 1
+}
