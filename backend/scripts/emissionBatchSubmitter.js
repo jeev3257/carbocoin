@@ -94,7 +94,8 @@ async function gracefulShutdown() {
 process.on("SIGINT", gracefulShutdown);
 process.on("SIGTERM", gracefulShutdown);
 
-const WINDOW_MS = 10 * 60 * 1000;
+const WINDOW_MS = Number(process.env.BATCH_WINDOW_MS || 10 * 60 * 1000);
+const MIN_READINGS = Number(process.env.MIN_BATCH_READINGS || 10);
 
 async function fetchApprovedCompanies() {
   const snapshot = await db
@@ -181,9 +182,9 @@ async function buildBatch(company) {
     return null;
   }
 
-  if (readings.length < 10) {
+  if (readings.length < MIN_READINGS) {
     console.log(
-      `Not enough readings for ${company.companyName || company.id}: have ${readings.length}, need 10 within ${WINDOW_MS / 60000} min window. lastProcessedAt=${lastProcessed} firstTs=${windowStart} lastTs=${windowEnd}`,
+      `Not enough readings for ${company.companyName || company.id}: have ${readings.length}, need ${MIN_READINGS} within ${WINDOW_MS / 60000} min window. lastProcessedAt=${lastProcessed} firstTs=${windowStart} lastTs=${windowEnd}`,
     );
     return null;
   }
@@ -282,9 +283,10 @@ async function processOnce() {
 }
 
 (async () => {
-  console.log("Emission batch submitter started (runs every 10 minutes)");
+  console.log("Emission batch submitter started (checks every minute for 10-min batches)");
   await processOnce();
-  cron.schedule("*/10 * * * *", processOnce);
+  // Run every minute so we don't miss a just-written reading; batch window stays 10 minutes via WINDOW_MS.
+  cron.schedule("* * * * *", processOnce);
 })();
 
 function extractTransfers(receipt) {
