@@ -62,6 +62,10 @@ const tokenAbi = [
   "function submitBatch(address company,uint256 emissionKg,uint256 batchStartTime,uint256 batchEndTime,bytes32 batchHash,bytes32 batchId) external",
   "function emissionHistoryLength(address company) view returns (uint256)",
   "function getEmissionBatch(address company,uint256 index) view returns (uint256 startTime,uint256 endTime,uint256 emissionKg,uint256 capKg,bytes32 dataHash,int256 tokenChange,uint256 mintedTokens,uint256 burnedTokens,bytes32 batchId)",
+  "function owedBalance(address company) view returns (uint256)",
+  "function owedDueTime(address company) view returns (uint256)",
+  "function gracePeriodSec() view returns (uint256)",
+  "function penaltyAmount() view returns (uint256)",
 ];
 const tokenContract = new ethers.Contract(TOKEN_ADDRESS, tokenAbi, signer);
 const tokenAddressLower = TOKEN_ADDRESS.toLowerCase();
@@ -96,13 +100,37 @@ process.on("SIGTERM", gracefulShutdown);
 
 const WINDOW_MS = Number(process.env.BATCH_WINDOW_MS || 10 * 60 * 1000);
 const MIN_READINGS = Number(process.env.MIN_BATCH_READINGS || 10);
+const MAX_READS = Number(process.env.MAX_BATCH_READS || 2000);
+const RATE_LIMIT_SLEEP_MS = Number(process.env.RATE_LIMIT_SLEEP_MS || 300);
+const COMPANY_CACHE_MS = Number(process.env.COMPANY_CACHE_MS || 5 * 60 * 1000);
+// If the server was down for a bit, ignore readings older than this gap relative to "now"
+// so we start a fresh window after a restart. Default 2 minutes.
+const RESTART_GAP_MS =
+  process.env.RESTART_GAP_MS === "0"
+    ? 0
+    : Number(process.env.RESTART_GAP_MS || 2 * 60 * 1000);
+
+// Warmup guard: wait one full window after startup before submitting.
+const START_TIME_MS = Date.now();
+const ALLOW_PAST_READINGS = process.env.ALLOW_PAST_READINGS === "true";
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+let cachedCompanies = [];
+let lastCompanyFetch = 0;
 
 async function fetchApprovedCompanies() {
+  const now = Date.now();
+  if (cachedCompanies.length && now - lastCompanyFetch < COMPANY_CACHE_MS) {
+    return cachedCompanies;
+  }
   const snapshot = await db
     .collection("companies")
     .where("status", "==", "approved")
     .get();
-  return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  cachedCompanies = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  lastCompanyFetch = now;
+  return cachedCompanies;
 }
 
 async function getLastProcessed(companyId) {
@@ -133,58 +161,85 @@ async function buildBatch(company) {
   }
 
   const lastProcessed = await getLastProcessed(company.id);
+  // Optionally ignore persisted lastProcessed on restart to start fresh from server boot
+  const effectiveCutoff =
+    process.env.RESET_LAST_PROCESSED_ON_START === "true"
+      ? START_TIME_MS
+      : lastProcessed;
   const readingsRef = db
     .collection("emission")
     .doc(company.id)
     .collection("readings")
-    .where("timestampMs", ">", lastProcessed)
-    .orderBy("timestampMs");
+    .where("timestampMs", ">", effectiveCutoff)
+    .orderBy("timestampMs")
+    .limit(MAX_READS);
 
   const snapshot = await readingsRef.get();
   if (snapshot.empty) {
     console.log(
-      `No readings for ${company.companyName || company.id} after lastProcessedAt=${lastProcessed} (wallet=${company.walletAddress})`,
+      `No readings for ${company.companyName || company.id} after cutoff=${effectiveCutoff} (lastProcessed=${lastProcessed}) (wallet=${company.walletAddress})`,
     );
     return null;
   }
 
-  const readings = [];
-  let windowStart = null;
-  let windowEnd = null;
-  let totalKg = 0;
-
+  const allReadings = [];
   for (const doc of snapshot.docs) {
     const data = doc.data();
-    const ts = data.timestampMs || Date.parse(data.timestamp);
-    if (!ts) {
+    const tsField = data.timestampMs || Date.parse(data.timestamp);
+    const ts =
+      typeof tsField === "number" && !Number.isNaN(tsField)
+        ? tsField
+        : doc.createTime?.toMillis?.();
+    if (!ts || Number.isNaN(ts)) {
       continue;
     }
-    if (windowStart === null) {
-      windowStart = ts;
+    // Ignore any reading that predates this server start, unless explicitly allowed
+    if (!ALLOW_PAST_READINGS && ts < START_TIME_MS) {
+      continue;
     }
-    if (ts - windowStart > WINDOW_MS) {
-      break;
+    // Ignore readings older than last processed when set
+    if (ts <= effectiveCutoff) {
+      continue;
     }
-    windowEnd = ts;
-    const emissionKg = Number(data.emissionKg ?? 0);
-    totalKg += Math.round(emissionKg);
-    readings.push({
+    allReadings.push({
       timestampMs: ts,
-      emissionKg,
+      emissionKg: Number(data.emissionKg ?? 0),
       sensorId: data.sensorId || "sensor-unknown",
     });
   }
 
-  if (!windowStart || !windowEnd || readings.length === 0) {
+  // Sort ascending by timestamp to ensure windowing is correct
+  allReadings.sort((a, b) => a.timestampMs - b.timestampMs);
+
+  if (allReadings.length === 0) {
     console.log(
       `No usable readings for ${company.companyName || company.id} (wallet=${company.walletAddress}); snapshot=${snapshot.size}`,
     );
     return null;
   }
 
-  if (readings.length < MIN_READINGS) {
+  // Anchor the window to the latest reading; also drop anything older than RESTART_GAP_MS from "now"
+  // so a restart after a pause starts a fresh 10-minute window.
+  const latestTs = allReadings[allReadings.length - 1].timestampMs;
+  const restartBound = RESTART_GAP_MS ? Date.now() - RESTART_GAP_MS : -Infinity;
+  const windowStartBound = Math.max(latestTs - WINDOW_MS, restartBound);
+  const windowReadings = allReadings.filter(
+    (r) => r.timestampMs >= windowStartBound,
+  );
+
+  console.log(
+    `Window debug ${company.companyName || company.id}: totalReadings=${allReadings.length}, windowReadings=${windowReadings.length}, windowStartBound=${windowStartBound}, latestTs=${latestTs}, restartGapMs=${RESTART_GAP_MS}`,
+  );
+
+  const totalKg = windowReadings.reduce(
+    (sum, r) => sum + Math.round(r.emissionKg),
+    0,
+  );
+
+  if (windowReadings.length < MIN_READINGS) {
+    const firstTs = windowReadings[0]?.timestampMs || null;
     console.log(
-      `Not enough readings for ${company.companyName || company.id}: have ${readings.length}, need ${MIN_READINGS} within ${WINDOW_MS / 60000} min window. lastProcessedAt=${lastProcessed} firstTs=${windowStart} lastTs=${windowEnd}`,
+      `Not enough readings for ${company.companyName || company.id}: have ${windowReadings.length}, need ${MIN_READINGS} within ${WINDOW_MS / 60000} min window. cutoff=${effectiveCutoff} lastProcessed=${lastProcessed} firstTs=${firstTs} lastTs=${latestTs}`,
     );
     return null;
   }
@@ -196,9 +251,9 @@ async function buildBatch(company) {
     return null;
   }
 
-  const batchHash = hashReadings(readings);
-  const batchStartSec = Math.floor(windowStart / 1000);
-  const batchEndSec = Math.floor(windowEnd / 1000);
+  const batchStartSec = Math.floor(windowReadings[0].timestampMs / 1000);
+  const batchEndSec = Math.floor(latestTs / 1000);
+  const batchHash = hashReadings(windowReadings);
   const batchId = ethers.solidityPackedKeccak256(
     ["address", "uint256", "uint256", "bytes32"],
     [company.walletAddress, batchStartSec, batchEndSec, batchHash],
@@ -213,8 +268,8 @@ async function buildBatch(company) {
     endSec: batchEndSec,
     batchHash,
     batchId,
-    lastTimestampMs: windowEnd,
-    readingsCount: readings.length,
+    lastTimestampMs: latestTs,
+    readingsCount: windowReadings.length,
   };
 }
 
@@ -225,14 +280,56 @@ async function submitBatch(batch, company) {
   console.log(
     `Submitting batch → company=${company.companyName || company.id} wallet=${batch.companyAddress} emissionKg=${batch.emissionKg} window=${batch.startSec}-${batch.endSec} hash=${batch.batchHash}`,
   );
-  const tx = await tokenContract.submitBatch(
-    batch.companyAddress,
-    batch.emissionKg,
-    batch.startSec,
-    batch.endSec,
-    batch.batchHash,
-    batch.batchId,
-  );
+  let tx;
+  try {
+    tx = await tokenContract.submitBatch(
+      batch.companyAddress,
+      batch.emissionKg,
+      batch.startSec,
+      batch.endSec,
+      batch.batchHash,
+      batch.batchId,
+    );
+  } catch (err) {
+    const alreadyKnown =
+      err?.error?.message === "already known" ||
+      (typeof err?.message === "string" &&
+        err.message.includes("already known"));
+    if (alreadyKnown && err?.payload?.params?.[0]) {
+      try {
+        const rawTx = err.payload.params[0];
+        const parsed = ethers.Transaction.from(rawTx);
+        const hash = parsed?.hash;
+        if (hash) {
+          console.warn(
+            `Tx already known, waiting on existing hash=${hash} for ${company.companyName || company.id}`,
+          );
+          const existing = await provider.getTransaction(hash);
+          if (existing) {
+            const receipt = await provider.waitForTransaction(hash);
+            console.log(
+              `Known tx resolved for ${company.companyName || company.id}: status=${receipt?.status} hash=${hash}`,
+            );
+            if (!receipt) throw err;
+            await persistChainBatch(
+              batch,
+              company,
+              receipt,
+              await tokenContract.getEmissionBatch(
+                batch.companyAddress,
+                prevIndex,
+              ),
+            );
+            return;
+          }
+        }
+      } catch (inner) {
+        console.warn("Failed to resolve already-known tx; will rethrow", inner);
+      }
+    }
+    throw err;
+  }
+
   inFlightTxs.add(tx.hash);
   const receipt = await tx.wait();
   inFlightTxs.delete(tx.hash);
@@ -255,6 +352,16 @@ async function submitBatch(batch, company) {
 }
 
 async function processOnce() {
+  // Warmup: ensure a full window has elapsed since startup so we have 10 minutes of data.
+  const sinceStart = Date.now() - START_TIME_MS;
+  if (sinceStart < WINDOW_MS) {
+    const remainingMs = WINDOW_MS - sinceStart;
+    console.log(
+      `Warmup: waiting ${(remainingMs / 60000).toFixed(2)} min before first batch submission to ensure full window of readings`,
+    );
+    return;
+  }
+
   try {
     const companies = await fetchApprovedCompanies();
     if (!companies.length) {
@@ -266,10 +373,12 @@ async function processOnce() {
       try {
         const batch = await buildBatch(company);
         if (!batch) {
+          if (RATE_LIMIT_SLEEP_MS) await sleep(RATE_LIMIT_SLEEP_MS);
           continue;
         }
         await submitBatch(batch, company);
         await setLastProcessed(company.id, batch.lastTimestampMs);
+        if (RATE_LIMIT_SLEEP_MS) await sleep(RATE_LIMIT_SLEEP_MS);
       } catch (err) {
         console.error(
           `Failed to submit batch for ${company.companyName || company.id}:`,
@@ -283,7 +392,9 @@ async function processOnce() {
 }
 
 (async () => {
-  console.log("Emission batch submitter started (checks every minute for 10-min batches)");
+  console.log(
+    "Emission batch submitter started (checks every minute for 10-min batches)",
+  );
   await processOnce();
   // Run every minute so we don't miss a just-written reading; batch window stays 10 minutes via WINDOW_MS.
   cron.schedule("* * * * *", processOnce);
@@ -328,6 +439,9 @@ async function persistChainBatch(batch, company, receipt, contractBatch) {
     mintedTokens: contractBatch.mintedTokens.toString(),
     burnedTokens: contractBatch.burnedTokens.toString(),
     tokenChange: contractBatch.tokenChange.toString(),
+    owedTokens: null,
+    owedDueTime: null,
+    owedBalance: null,
     readingsCount: batch.readingsCount,
     dataHash: contractBatch.dataHash,
     txHash,
@@ -340,4 +454,17 @@ async function persistChainBatch(batch, company, receipt, contractBatch) {
   };
 
   await db.collection("chainBatches").doc(docId).set(chainDoc);
+
+  // Also store current owedBalance for the company to make UI simpler
+  try {
+    const currentOwed = await tokenContract.owedBalance(batch.companyAddress);
+    await db.collection("companies").doc(company.id).set(
+      {
+        owedBalance: currentOwed.toString(),
+      },
+      { merge: true },
+    );
+  } catch (err) {
+    console.error("Failed to fetch/store owedBalance:", err);
+  }
 }

@@ -6,6 +6,7 @@ export default function MetaMaskConnect() {
   const [account, setAccount] = useState(null);
   const [error, setError] = useState("");
   const [connecting, setConnecting] = useState(true);
+  const [addStatus, setAddStatus] = useState("");
 
   useEffect(() => {
     const sdk = new MetaMaskSDK({
@@ -53,6 +54,47 @@ export default function MetaMaskConnect() {
         <p className="text-sm text-gray-400">
           {error || (connecting ? "Connecting..." : "Not connected")}
         </p>
+      )}
+      {account && (
+        <div className="mt-3">
+          <button
+            onClick={async () => {
+              setAddStatus("adding");
+              try {
+                const tokenAddress = import.meta.env.VITE_CARBON_TOKEN_ADDRESS;
+                if (!window.ethereum) throw new Error("MetaMask not available");
+                const added = await window.ethereum.request({
+                  method: "wallet_watchAsset",
+                  params: {
+                    type: "ERC20",
+                    options: {
+                      address: tokenAddress,
+                      symbol: "CCT",
+                      decimals: 18,
+                      image: "",
+                    },
+                  },
+                });
+                setAddStatus(added ? "added" : "rejected");
+              } catch (err) {
+                setError(err?.message || "Failed to add token");
+                setAddStatus("error");
+              }
+            }}
+            className="px-3 py-1 bg-emerald-500 rounded-md text-black text-sm"
+          >
+            Add CCT to MetaMask
+          </button>
+          {addStatus === "adding" && (
+            <p className="text-xs text-gray-300 mt-2">Adding token…</p>
+          )}
+          {addStatus === "added" && (
+            <p className="text-xs text-emerald-300 mt-2">Token added</p>
+          )}
+          {addStatus === "rejected" && (
+            <p className="text-xs text-yellow-300 mt-2">Request rejected</p>
+          )}
+        </div>
       )}
     </div>
   );

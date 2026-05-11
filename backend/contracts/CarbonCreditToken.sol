@@ -51,6 +51,19 @@ contract CarbonCreditToken {
     /// @dev history per company
     mapping(address => EmissionBatch[]) public emissionHistory;
 
+    struct TempBatch {
+        int256 tokenChange;
+        uint256 minted;
+        uint256 burned;
+        uint256 owedTokens;
+    }
+
+    // --- Debt tracking ---
+    mapping(address => uint256) public owedBalance; // total unpaid burn debt per company
+    mapping(address => uint256) public owedDueTime; // next deadline when penalties start accruing
+    uint256 public gracePeriodSec = 15 minutes;
+    uint256 public penaltyAmount = 3; // fixed tokens added per overdue interval
+
     // --- Events ---
     event BatchRecorded(
         address indexed company,
@@ -66,6 +79,14 @@ contract CarbonCreditToken {
     );
     event CreditsIssued(address indexed company, uint256 tokens);
     event PenaltyApplied(address indexed company, uint256 tokens);
+    event OwedRecorded(address indexed company, uint256 owedTokens, uint256 dueTime);
+    event OwedSettled(address indexed company, uint256 settledTokens, uint256 remainingOwed);
+    event OwedPenaltyApplied(address indexed company, uint256 addedTokens, uint256 newOwed, uint256 nextDueTime);
+    event BatchOwed(address indexed company, bytes32 batchId, uint256 owedTokens, uint256 dueTime);
+    event GracePeriodUpdated(uint256 gracePeriodSec);
+    event PenaltyAmountUpdated(uint256 penaltyAmount);
+    event AdminMint(address indexed to, uint256 amount);
+    event AdminBurn(address indexed from, uint256 amount);
 
     // --- Constructor ---
     constructor(address registryAddress) {
@@ -80,6 +101,56 @@ contract CarbonCreditToken {
         require(newOwner != address(0), "Zero owner");
         emit OwnershipTransferred(owner, newOwner);
         owner = newOwner;
+    }
+
+    function setGracePeriod(uint256 seconds_) external onlyOwner {
+        require(seconds_ > 0, "grace > 0");
+        gracePeriodSec = seconds_;
+        emit GracePeriodUpdated(seconds_);
+    }
+
+    function setPenaltyAmount(uint256 amount) external onlyOwner {
+        require(amount > 0, "penalty > 0");
+        penaltyAmount = amount;
+        emit PenaltyAmountUpdated(amount);
+    }
+
+    /// @notice owner-only helper to mint tokens directly (admin/test tooling) while first settling any owed balance
+    function adminMint(address to, uint256 amount) external onlyOwner {
+        require(to != address(0), "Zero to");
+        require(amount > 0, "amount=0");
+
+        uint256 owed = owedBalance[to];
+        if (owed > 0) {
+            if (amount >= owed) {
+                // Clear debt first, mint remainder
+                owedBalance[to] = 0;
+                owedDueTime[to] = 0;
+                emit OwedSettled(to, owed, 0);
+
+                uint256 netMint = amount - owed;
+                if (netMint > 0) {
+                    _mint(to, netMint);
+                    emit AdminMint(to, netMint);
+                }
+            } else {
+                // Reduce debt only; no net mint
+                owedBalance[to] = owed - amount;
+                emit OwedSettled(to, amount, owed - amount);
+                return;
+            }
+        } else {
+            _mint(to, amount);
+            emit AdminMint(to, amount);
+        }
+    }
+
+    /// @notice owner-only helper to burn tokens from a holder (admin/test tooling)
+    function adminBurn(address from, uint256 amount) external onlyOwner {
+        require(from != address(0), "Zero from");
+        require(amount > 0, "amount=0");
+        _burn(from, amount);
+        emit AdminBurn(from, amount);
     }
 
     // --- ERC20 internals ---
@@ -150,33 +221,23 @@ contract CarbonCreditToken {
         require(!processedBatches[batchId], "Batch already processed");
         processedBatches[batchId] = true;
 
+        _applyPenalty(company);
+
         uint256 capKg = registry.getCapKgByWallet(company);
         require(capKg > 0, "cap missing");
-        int256 tokenChange = 0;
-        uint256 mintedTokens = 0;
-        uint256 burnedTokens = 0;
+        TempBatch memory t;
 
         if (emissionKg < capKg) {
             uint256 diffKg = capKg - emissionKg;
             uint256 mintTokens = diffKg / 1000; // 1000 kg = 1 token
             if (mintTokens > 0) {
-                _mint(company, mintTokens);
-                emit CreditsIssued(company, mintTokens);
-                tokenChange = int256(mintTokens);
-                mintedTokens = mintTokens;
+                _mintAndSettle(company, mintTokens, t);
             }
         } else if (emissionKg > capKg) {
             uint256 exceedKg = emissionKg - capKg;
             uint256 burnTokens = exceedKg / 1000;
             if (burnTokens > 0) {
-                uint256 available = balanceOf[company];
-                uint256 toBurn = burnTokens > available ? available : burnTokens;
-                if (toBurn > 0) {
-                    _burn(company, toBurn);
-                    emit PenaltyApplied(company, toBurn);
-                    tokenChange = -int256(toBurn);
-                    burnedTokens = toBurn;
-                }
+                _burnAndAccrue(company, burnTokens, t);
             }
         }
 
@@ -188,9 +249,9 @@ contract CarbonCreditToken {
                 emissionKg: emissionKg,
                 capKg: capKg,
                 dataHash: batchHash,
-                tokenChange: tokenChange,
-                mintedTokens: mintedTokens,
-                burnedTokens: burnedTokens,
+                tokenChange: t.tokenChange,
+                mintedTokens: t.minted,
+                burnedTokens: t.burned,
                 batchId: batchId
             })
         );
@@ -203,10 +264,100 @@ contract CarbonCreditToken {
             batchEndTime,
             emissionKg,
             capKg,
-            mintedTokens,
-            burnedTokens,
-            tokenChange
+            t.minted,
+            t.burned,
+            t.tokenChange
         );
+
+        if (t.owedTokens > 0) {
+            emit BatchOwed(company, batchId, t.owedTokens, owedDueTime[company]);
+        }
+    }
+
+    function _applyPenalty(address company) internal {
+        uint256 due = owedDueTime[company];
+        if (owedBalance[company] == 0 || due == 0 || block.timestamp <= due) {
+            return;
+        }
+
+        uint256 intervals = (block.timestamp - due) / gracePeriodSec + 1;
+        uint256 added = intervals * penaltyAmount;
+        owedBalance[company] = owedBalance[company] + added;
+        owedDueTime[company] = due + intervals * gracePeriodSec;
+        emit OwedPenaltyApplied(company, added, owedBalance[company], owedDueTime[company]);
+    }
+
+    function _mintAndSettle(address company, uint256 mintTokens, TempBatch memory t) internal {
+        uint256 owed = owedBalance[company];
+        if (owed > 0) {
+            if (mintTokens >= owed) {
+                uint256 netMint = mintTokens - owed;
+                owedBalance[company] = 0;
+                owedDueTime[company] = 0;
+                emit OwedSettled(company, owed, 0);
+                if (netMint > 0) {
+                    _mint(company, netMint);
+                    emit CreditsIssued(company, netMint);
+                    t.minted = netMint;
+                    t.tokenChange = int256(netMint);
+                }
+            } else {
+                owedBalance[company] = owed - mintTokens;
+                emit OwedSettled(company, mintTokens, owed - mintTokens);
+            }
+        } else {
+            _mint(company, mintTokens);
+            emit CreditsIssued(company, mintTokens);
+            t.minted = mintTokens;
+            t.tokenChange = int256(mintTokens);
+        }
+    }
+
+    function _burnAndAccrue(address company, uint256 burnTokens, TempBatch memory t) internal {
+        uint256 toBurn = burnTokens;
+        {
+            uint256 available = balanceOf[company];
+            if (toBurn > available) {
+                toBurn = available;
+            }
+        }
+        if (toBurn > 0) {
+            _burn(company, toBurn);
+            emit PenaltyApplied(company, toBurn);
+            t.tokenChange = -int256(toBurn);
+            t.burned = toBurn;
+        }
+
+        if (burnTokens > toBurn) {
+            uint256 shortfall = burnTokens - toBurn;
+            owedBalance[company] += shortfall;
+            uint256 newDue = block.timestamp + gracePeriodSec;
+            uint256 nextDue = owedDueTime[company];
+            if (nextDue == 0 || newDue < nextDue) {
+                nextDue = newDue;
+            }
+            owedDueTime[company] = nextDue;
+            t.owedTokens = shortfall;
+            emit OwedRecorded(company, shortfall, nextDue);
+        }
+    }
+
+    function settleOwed(uint256 amount) external {
+        address company = msg.sender;
+        uint256 owed = owedBalance[company];
+        require(owed > 0, "no owed");
+        uint256 bal = balanceOf[company];
+        uint256 toBurn = amount > bal ? bal : amount;
+        require(toBurn > 0, "no balance");
+        _burn(company, toBurn);
+        if (toBurn >= owed) {
+            owedBalance[company] = 0;
+            owedDueTime[company] = 0;
+            emit OwedSettled(company, owed, 0);
+        } else {
+            owedBalance[company] = owed - toBurn;
+            emit OwedSettled(company, toBurn, owed - toBurn);
+        }
     }
 
     // --- View helpers ---

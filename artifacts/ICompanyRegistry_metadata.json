@@ -53,11 +53,11 @@
 	},
 	"sources": {
 		"backend/contracts/CarbonCreditToken.sol": {
-			"keccak256": "0x5ed0edec2f88f1db3b522520c0decd5e79c7132497fe69887c646ecc8b248992",
+			"keccak256": "0x90dd1b8fb64cc0196b784334c7ea53262d957ecaf91bfe185fe60dcc625d2a4a",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://df5700372b8e3441a2fe0426a1e03cf4918c2a427b217661e42b4a360ea7d158",
-				"dweb:/ipfs/QmdRvAvcMs7uQWNm1xkbzgHpxqWhmtzHide2GZutHo4L2Y"
+				"bzz-raw://b68389c09266881d6246d2cf90a6f2726623c062bf4f59a2ca02ebacf892b43c",
+				"dweb:/ipfs/QmdWcVoEUp8w2rBsGmDfbzCrGNHqsYNy5kTbB9iuhQQfvS"
 			]
 		}
 	},

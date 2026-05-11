@@ -22,6 +22,44 @@
 					{
 						"indexed": true,
 						"internalType": "address",
+						"name": "from",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "AdminBurn",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "to",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "AdminMint",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
 						"name": "owner",
 						"type": "address"
 					},
@@ -39,6 +77,37 @@
 					}
 				],
 				"name": "Approval",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "company",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "bytes32",
+						"name": "batchId",
+						"type": "bytes32"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "owedTokens",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "dueTime",
+						"type": "uint256"
+					}
+				],
+				"name": "BatchOwed",
 				"type": "event"
 			},
 			{
@@ -131,6 +200,100 @@
 				"anonymous": false,
 				"inputs": [
 					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "gracePeriodSec",
+						"type": "uint256"
+					}
+				],
+				"name": "GracePeriodUpdated",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "company",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "addedTokens",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "newOwed",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "nextDueTime",
+						"type": "uint256"
+					}
+				],
+				"name": "OwedPenaltyApplied",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "company",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "owedTokens",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "dueTime",
+						"type": "uint256"
+					}
+				],
+				"name": "OwedRecorded",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": true,
+						"internalType": "address",
+						"name": "company",
+						"type": "address"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "settledTokens",
+						"type": "uint256"
+					},
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "remainingOwed",
+						"type": "uint256"
+					}
+				],
+				"name": "OwedSettled",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
 						"indexed": true,
 						"internalType": "address",
 						"name": "previousOwner",
@@ -144,6 +307,19 @@
 					}
 				],
 				"name": "OwnershipTransferred",
+				"type": "event"
+			},
+			{
+				"anonymous": false,
+				"inputs": [
+					{
+						"indexed": false,
+						"internalType": "uint256",
+						"name": "penaltyAmount",
+						"type": "uint256"
+					}
+				],
+				"name": "PenaltyAmountUpdated",
 				"type": "event"
 			},
 			{
@@ -189,6 +365,42 @@
 				],
 				"name": "Transfer",
 				"type": "event"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "from",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "adminBurn",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "to",
+						"type": "address"
+					},
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "adminMint",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
 			},
 			{
 				"inputs": [
@@ -426,12 +638,63 @@
 			},
 			{
 				"inputs": [],
+				"name": "gracePeriodSec",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
 				"name": "name",
 				"outputs": [
 					{
 						"internalType": "string",
 						"name": "",
 						"type": "string"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "owedBalance",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "address",
+						"name": "",
+						"type": "address"
+					}
+				],
+				"name": "owedDueTime",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
 					}
 				],
 				"stateMutability": "view",
@@ -445,6 +708,19 @@
 						"internalType": "address",
 						"name": "",
 						"type": "address"
+					}
+				],
+				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [],
+				"name": "penaltyAmount",
+				"outputs": [
+					{
+						"internalType": "uint256",
+						"name": "",
+						"type": "uint256"
 					}
 				],
 				"stateMutability": "view",
@@ -480,6 +756,45 @@
 					}
 				],
 				"stateMutability": "view",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "seconds_",
+						"type": "uint256"
+					}
+				],
+				"name": "setGracePeriod",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "setPenaltyAmount",
+				"outputs": [],
+				"stateMutability": "nonpayable",
+				"type": "function"
+			},
+			{
+				"inputs": [
+					{
+						"internalType": "uint256",
+						"name": "amount",
+						"type": "uint256"
+					}
+				],
+				"name": "settleOwed",
+				"outputs": [],
+				"stateMutability": "nonpayable",
 				"type": "function"
 			},
 			{
@@ -640,7 +955,14 @@
 		},
 		"userdoc": {
 			"kind": "user",
-			"methods": {},
+			"methods": {
+				"adminBurn(address,uint256)": {
+					"notice": "owner-only helper to burn tokens from a holder (admin/test tooling)"
+				},
+				"adminMint(address,uint256)": {
+					"notice": "owner-only helper to mint tokens directly (admin/test tooling)"
+				}
+			},
 			"notice": "Owner submits 10-minute emission batches. Caps sourced from CompanyRegistry.         Under-cap → mint credits; over-cap → burn credits (if held).",
 			"version": 1
 		}
@@ -662,11 +984,11 @@
 	},
 	"sources": {
 		"backend/contracts/CarbonCreditToken.sol": {
-			"keccak256": "0x5ed0edec2f88f1db3b522520c0decd5e79c7132497fe69887c646ecc8b248992",
+			"keccak256": "0x90dd1b8fb64cc0196b784334c7ea53262d957ecaf91bfe185fe60dcc625d2a4a",
 			"license": "MIT",
 			"urls": [
-				"bzz-raw://df5700372b8e3441a2fe0426a1e03cf4918c2a427b217661e42b4a360ea7d158",
-				"dweb:/ipfs/QmdRvAvcMs7uQWNm1xkbzgHpxqWhmtzHide2GZutHo4L2Y"
+				"bzz-raw://b68389c09266881d6246d2cf90a6f2726623c062bf4f59a2ca02ebacf892b43c",
+				"dweb:/ipfs/QmdWcVoEUp8w2rBsGmDfbzCrGNHqsYNy5kTbB9iuhQQfvS"
 			]
 		}
 	},

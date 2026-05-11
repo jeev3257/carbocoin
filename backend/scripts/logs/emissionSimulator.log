@@ -1,0 +1,9 @@
+[dotenv@17.2.3] injecting env (8) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+Auto-start enabled → launching emissionBatchSubmitter...
+[dotenv@17.2.3] injecting env (0) from .env -- tip: ⚙️  override existing env vars with { override: true }
+Emission batch submitter started (checks every minute for 10-min batches)
+Warmup: waiting 10.00 min before first batch submission to ensure full window of readings
+Emission stored for GreenTech Manufacturing | ppm=8852.18 | flow=10000 Nm3/s | target_tons_10min=93.96 | this_min≈9.56 tons
+Emission stored for abc | ppm=8852.18 | flow=10000 Nm3/s | target_tons_10min=93.96 | this_min≈9.56 tons
+Emission stored for GreenTech Manufacturing | ppm=8852.18 | flow=10000 Nm3/s | target_tons_10min=93.96 | this_min≈9.56 tons
+Emission simulator started (runs every minute)

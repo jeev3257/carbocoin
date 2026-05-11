@@ -34,13 +34,27 @@ export function AdminPanel({ onNavigate }) {
   const [approveModal, setApproveModal] = useState(null);
   const [emissionCap, setEmissionCap] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [adjustCompanyId, setAdjustCompanyId] = useState("");
+  const [adjustAmount, setAdjustAmount] = useState("");
+  const [adjustMode, setAdjustMode] = useState("credit"); // credit = send to company, debit = pull from company (needs allowance)
+  const [adjustLoading, setAdjustLoading] = useState(false);
+  const [adjustMessage, setAdjustMessage] = useState("");
 
   const ADMIN_ADDRESS = "0xab9f6082c586666D04cD3b24DB95c2980957eaFd";
   const FUND_AMOUNT_ETH = import.meta.env.VITE_COMPANY_FUND_AMOUNT_ETH || "0.1";
   const REGISTRY_ADDRESS = import.meta.env.VITE_COMPANY_REGISTRY_ADDRESS;
+  const TOKEN_ADDRESS =
+    import.meta.env.VITE_ADMIN_TOKEN_ADDRESS ||
+    import.meta.env.VITE_CARBON_TOKEN_ADDRESS;
 
   const registryAbi = [
     "function recordCompanyAndFund(string firebaseId,string name,address wallet,string emissionCapText,uint256 capKgPerWindow) external payable",
+  ];
+
+  const tokenAbi = [
+    "function adminMint(address to,uint256 amount) external",
+    "function adminBurn(address from,uint256 amount) external",
+    "function decimals() view returns (uint8)",
   ];
 
   const calculateCapKgPerWindow = () => {
@@ -195,6 +209,68 @@ export function AdminPanel({ onNavigate }) {
     }
   };
 
+  const handleAdjustBalance = async () => {
+    setAdjustMessage("");
+    if (!adjustCompanyId) {
+      alert("Select a company");
+      return;
+    }
+    const amtInt = Number.parseInt(adjustAmount, 10);
+    if (!Number.isFinite(amtInt) || amtInt <= 0) {
+      alert("Enter a positive integer amount (CCT has 0 decimals)");
+      return;
+    }
+    if (!TOKEN_ADDRESS) {
+      alert("Missing VITE_CARBON_TOKEN_ADDRESS in env");
+      return;
+    }
+    const rpcUrl = import.meta.env.VITE_SEPOLIA_RPC_URL;
+    const adminPrivateKey = import.meta.env.VITE_ADMIN_PRIVATE_KEY;
+    if (!rpcUrl || !adminPrivateKey) {
+      alert("Missing VITE_SEPOLIA_RPC_URL or VITE_ADMIN_PRIVATE_KEY");
+      return;
+    }
+
+    const company = companies.find((c) => c.id === adjustCompanyId);
+    if (!company?.walletAddress) {
+      alert("Selected company has no walletAddress");
+      return;
+    }
+
+    setAdjustLoading(true);
+    try {
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      const signer = new ethers.Wallet(adminPrivateKey, provider);
+      const token = new ethers.Contract(TOKEN_ADDRESS, tokenAbi, signer);
+
+      const decimals = await token.decimals().catch(() => 0);
+      if (decimals !== 0) {
+        console.warn("Token decimals expected 0, got", decimals);
+      }
+
+      const parsedAmt = ethers.parseUnits(String(amtInt), decimals);
+
+      if (adjustMode === "credit") {
+        const tx = await token.adminMint(company.walletAddress, parsedAmt);
+        await tx.wait();
+        setAdjustMessage(
+          `✅ Successfully minted ${amtInt} CCT to ${company.companyName}`,
+        );
+      } else {
+        const tx = await token.adminBurn(company.walletAddress, parsedAmt);
+        await tx.wait();
+        setAdjustMessage(
+          `✅ Successfully burned ${amtInt} CCT from ${company.companyName}`,
+        );
+      }
+    } catch (err) {
+      console.error("Adjust token err:", err);
+      setAdjustMessage("❌ Failed. Check console or allowance.");
+    } finally {
+      setAdjustLoading(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     const config = {
       pending: {
@@ -229,6 +305,98 @@ export function AdminPanel({ onNavigate }) {
         <header className="border-b border-white/10 bg-white/5 backdrop-blur-md sticky top-0 z-20">
           <div className="max-w-7xl mx-auto flex items-center justify-between px-6 py-4">
             <div className="flex items-center gap-3">
+              {/* Quick Adjust (test only) */}
+              <div className="max-w-7xl mx-auto px-6 py-6">
+                <Card className="border-white/10 bg-white/5 backdrop-blur-md shadow-lg shadow-emerald-900/10">
+                  <CardContent className="p-6 flex flex-col gap-4">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">
+                          Quick Balance Adjust (Test Only)
+                        </h3>
+                        <p className="text-xs text-gray-400">
+                          Credits mint and debits burn via the admin token
+                          (VITE_ADMIN_TOKEN_ADDRESS; falls back to
+                          VITE_CARBON_TOKEN_ADDRESS).
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <select
+                          value={adjustCompanyId}
+                          onChange={(e) => setAdjustCompanyId(e.target.value)}
+                          className="bg-[#131b27] border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        >
+                          <option value="">Select company</option>
+                          {companies.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.companyName || c.id}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={adjustMode}
+                          onChange={(e) => setAdjustMode(e.target.value)}
+                          className="bg-[#131b27] border border-white/10 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        >
+                          <option value="credit">Credit (+)</option>
+                          <option value="debit">Debit (-)</option>
+                        </select>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          placeholder="Amount CCT"
+                          value={adjustAmount}
+                          onChange={(e) => setAdjustAmount(e.target.value)}
+                          className="bg-[#131b27] border border-white/10 text-white text-sm rounded-lg px-3 py-2 w-32 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <Button
+                          onClick={handleAdjustBalance}
+                          disabled={adjustLoading}
+                          className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                        >
+                          {adjustLoading ? (
+                            <span className="flex items-center gap-2 text-sm">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Processing
+                            </span>
+                          ) : (
+                            <span className="text-sm font-semibold">
+                              Execute
+                            </span>
+                          )}
+                        </Button>
+                      </div>
+                      {adjustCompanyId && (
+                        <div className="text-xs text-gray-400">
+                          {(() => {
+                            const selected = companies.find(
+                              (c) => c.id === adjustCompanyId,
+                            );
+                            if (!selected) return null;
+                            return (
+                              <span>
+                                {selected.companyName || selected.id}
+                                {selected.email ? ` | ${selected.email}` : ""}
+                                {selected.walletAddress
+                                  ? ` | ${selected.walletAddress}`
+                                  : " | wallet missing"}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                    {adjustMessage && (
+                      <p
+                        className={`text-sm ${adjustMessage.startsWith("✅") ? "text-emerald-400" : "text-amber-300"}`}
+                      >
+                        {adjustMessage}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
               <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-purple-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
                 <span className="text-white text-lg font-bold">A</span>
               </div>
