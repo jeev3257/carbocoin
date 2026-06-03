@@ -21,8 +21,12 @@ function App() {
       {page === "home" && <LandingPage onNavigate={onNavigate} />}
       {page === "login" && <LoginPage onNavigate={onNavigate} />}
       {page === "signup" && <SignupPage onNavigate={onNavigate} />}
-      {page === "dashboard" && <Dashboard onNavigate={onNavigate} userData={userData} />}
-      {page === "application-status" && <ApplicationStatus onNavigate={onNavigate} userData={userData} />}
+      {page === "dashboard" && (
+        <Dashboard onNavigate={onNavigate} userData={userData} />
+      )}
+      {page === "application-status" && (
+        <ApplicationStatus onNavigate={onNavigate} userData={userData} />
+      )}
       {page === "admin" && <AdminPanel onNavigate={onNavigate} />}
     </div>
   );
